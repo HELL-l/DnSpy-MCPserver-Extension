@@ -33,8 +33,8 @@ namespace Example1.Extension {
 			public SimpleMcpServer(Type commandSourceType) {
 				//DisableServerHeader(); //Prob not needed
 				_targetType = commandSourceType;
-				string IPAddress = "+"; //127.0.0.1
-				string port = "3003"; //64163
+				string IPAddress = "127.0.0.1"; //127.0.0.1
+				string port = "3023"; //64163
 				Console.WriteLine("MCP server listening on " + IPAddress + ":" + port);
 
 				_listener.Prefixes.Add("http://" + IPAddress + ":" + port + "/sse/"); //Request come in without a trailing '/' but are still handled
