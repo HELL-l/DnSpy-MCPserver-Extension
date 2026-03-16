@@ -51,10 +51,40 @@ jobs:
         run: New-Item -ItemType Directory -Path C:\builtfiles\dnSpy-${{matrix.platform}} -Force > $null
         continue-on-error: true
 
-      - name:  Copy release files for upload
-        run: Copy-Item -Path dnSpy\dnSpy\bin\Release\${{matrix.build-dir}}\* -Destination C:\builtfiles\dnSpy-${{matrix.platform}} -Recurse
+      - name: Copy build artifacts and extensions
+        run: |
+          $dest = "C:\builtfiles\dnSpy-${{matrix.platform}}"
+          $sourcePath = "dnSpy\dnSpy\bin\Release\${{matrix.build-dir}}"
+          
+          # 1. Copy main published files (Apps and core dependencies)
+          Write-Host "Copying main build files from $sourcePath..."
+          Copy-Item -Path "$sourcePath\*" -Destination $dest -Recurse -Force
 
-      - uses: actions/upload-artifact@v7.0.0
+          # 2. Extract extensions if using .NET 8 (Modern .NET publish often excludes non-referenced plugins)
+          if ("${{matrix.build-dir}}" -match "publish$") {
+              $parentDir = "dnSpy\dnSpy\bin\Release\" + ("${{matrix.build-dir}}" -replace "\\publish$", "")
+              Write-Host "Checking for extensions in parent directory: $parentDir"
+              
+              # Copy DLLs and PDBs that were not included in the publish folder (typically the extensions)
+              Get-ChildItem -Path $parentDir -File | Where-Object { $_.Extension -match '\.(dll|pdb)$' } | ForEach-Object {
+                  $targetFile = Join-Path $dest $_.Name
+                  if (-not (Test-Path $targetFile)) {
+                      Copy-Item $_.FullName -Destination $targetFile
+                      Write-Host "Included extension/dependency: $($_.Name)"
+                  }
+              }
+              
+              # Copy the Extensions folder if it exists in the parent directory
+              if (Test-Path "$parentDir\Extensions") {
+                  Write-Host "Copying Extensions subfolder..."
+                  $extDest = Join-Path $dest "Extensions"
+                  if (-not (Test-Path $extDest)) { New-Item -ItemType Directory -Path $extDest | Out-Null }
+                  Copy-Item -Path "$parentDir\Extensions\*" -Destination $extDest -Recurse -Force
+              }
+          }
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v7.0.0
         if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         with:
           name: dnSpy-${{matrix.package-name}}
